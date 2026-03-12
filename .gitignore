@@ -1,0 +1,50 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.spec
+
+# Virtual environments
+ai_copilot/
+venv/
+env/
+.venv/
+
+# Large data & model files
+arxiv_data/
+data/
+vector_db/
+vector_store/
+*.sqlite3
+*.bin
+*.pt
+*.pth
+*.onnx
+*.safetensors
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb
+
+# IDE / OS
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo
+Thumbs.db
+
+# Secrets / env
+.env
+.env.*
+secrets.yaml
+
+# Logs
+*.log
+logs/
