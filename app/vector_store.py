@@ -1,5 +1,4 @@
-# the following code let to errors hence commenting it out.
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from pathlib import Path
 
 from langchain.docstore.document import Document
 from langchain_huggingface import HuggingFaceEmbeddings
@@ -7,53 +6,70 @@ from langchain_community.vectorstores import FAISS
 
 from config import DATA_CHUNKS_DIR, VECTOR_DB_DIR
 
-#load the chunks
-#create doucment from the chunks ,then append to doc list
-#create vectordb from the doc list
+# ── Config ─────────────────────────────────────────────────────────────────
+FILE_BATCH_SIZE = 200          # process N chunk-files at a time (~low RAM)
+VECTOR_DB_DIR.mkdir(parents=True, exist_ok=True)
 
+# ── Embedder ───────────────────────────────────────────────────────────────
 embedder = HuggingFaceEmbeddings(
     model_name="BAAI/bge-small-en",
-    model_kwargs={"device": "mps"},      # Apple Silicon GPU
-    encode_kwargs={"batch_size": 128}    # Larger batches
+    model_kwargs={"device": "mps"},       # Apple Silicon GPU
+    encode_kwargs={"batch_size": 128},
 )
 
-docs = []
-def process_file(txt_file):
+# ── Helpers ────────────────────────────────────────────────────────────────
+def parse_chunks(txt_file: Path) -> list[Document]:
+    """Parse one chunk .txt file into LangChain Documents."""
     try:
-        # print("The file being processed is : ", txt_file)
-        with txt_file.open("r") as f:
-            content = f.read()
-
-        chunks = content.split("--- Chunk")
-
+        content = txt_file.read_text(encoding="utf-8", errors="ignore")
         return [
             Document(page_content=chunk.strip(), metadata={"source": txt_file.name})
-            for chunk in chunks
+            for chunk in content.split("--- Chunk")
             if chunk.strip()
         ]
-
     except Exception as e:
-        print(f"Error processing {txt_file} : {e}")
+        print(f"  [WARN] Skipping {txt_file.name}: {e}")
         return []
 
+# ── Main ingestion loop ────────────────────────────────────────────────────
+txt_files = sorted(DATA_CHUNKS_DIR.glob("*.txt"))
+total_files = len(txt_files)
+print(f"Found {total_files} chunk files in {DATA_CHUNKS_DIR}")
+print(f"Processing in batches of {FILE_BATCH_SIZE} files\n")
 
-with ThreadPoolExecutor() as executor:
-    txt_files = sorted(DATA_CHUNKS_DIR.glob("*.txt"))
-    print(f"Loading {len(txt_files)} chunk files from {DATA_CHUNKS_DIR}")
-    futures = [executor.submit(process_file, txt_file) for txt_file in txt_files]
+vector_db = None
+total_docs = 0
 
-    for future in as_completed(futures):
-        docs.extend(future.result())
+for batch_start in range(0, total_files, FILE_BATCH_SIZE):
+    batch_files = txt_files[batch_start: batch_start + FILE_BATCH_SIZE]
+    batch_num = batch_start // FILE_BATCH_SIZE + 1
+    total_batches = (total_files + FILE_BATCH_SIZE - 1) // FILE_BATCH_SIZE
 
-print("Total chunks found is : ", len(docs))
+    # Parse this batch into Documents
+    batch_docs = []
+    for f in batch_files:
+        batch_docs.extend(parse_chunks(f))
 
-vector_db = FAISS.from_documents(docs[:5000], embedding=embedder)
+    if not batch_docs:
+        continue
 
-for i in range(5000, len(docs), 5000):
-    vector_db.add_documents(docs[i:i+5000])
+    total_docs += len(batch_docs)
+    print(f"  Batch {batch_num}/{total_batches} | files: {len(batch_files)} | "
+          f"chunks: {len(batch_docs)} | total so far: {total_docs}")
 
-vector_db.save_local(str(VECTOR_DB_DIR))
+    # Embed and add to FAISS
+    if vector_db is None:
+        vector_db = FAISS.from_documents(batch_docs, embedding=embedder)
+    else:
+        vector_db.add_documents(batch_docs)
 
+    # Free RAM immediately after each batch
+    del batch_docs
 
-
-print("Vector Store  in Chroma DB created!")
+# ── Save ───────────────────────────────────────────────────────────────────
+if vector_db is not None:
+    vector_db.save_local(str(VECTOR_DB_DIR))
+    print(f"\n✅ FAISS index saved to {VECTOR_DB_DIR}")
+    print(f"   Total documents indexed: {total_docs}")
+else:
+    print("❌ No documents were indexed — check DATA_CHUNKS_DIR path.")
