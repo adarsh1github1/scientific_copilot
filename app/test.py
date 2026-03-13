@@ -1,27 +1,25 @@
-from langchain_community.embeddings import HuggingFaceEmbeddings
-from langchain_community.vectorstores import Chroma
+from langchain_huggingface import HuggingFaceEmbeddings
+from langchain_community.vectorstores import FAISS
 
 from config import VECTOR_DB_DIR
 
+embedder = HuggingFaceEmbeddings(
+    model_name="BAAI/bge-small-en",
+    model_kwargs={"device": "cpu"},   # CPU is fine for retrieval
+)
 
-vector_db = Chroma(persist_directory=str(VECTOR_DB_DIR))
-doc_count = vector_db._collection.count()
+vector_db = FAISS.load_local(
+    str(VECTOR_DB_DIR),
+    embeddings=embedder,
+    allow_dangerous_deserialization=True,
+)
 
-print(f"Vector DB path: {VECTOR_DB_DIR}")
-print(f"Total documents in DB: {doc_count}")
+print(f"Total documents in DB: {vector_db.index.ntotal}")
 
-# Uncomment the block below once the local embedding model is available.
-# embedder = HuggingFaceEmbeddings(model_name="BAAI/bge-small-en")
-# vector_db = Chroma(persist_directory=str(VECTOR_DB_DIR), embedding_function=embedder)
-# retriever = vector_db.as_retriever(search_kwargs={"k": 3})
-
-# query = "Explain the transormers model architecture"
-
-# results = retriever.get_relevant_documents(query)
-
-# print(results)
-
-# for i, doc in enumerate(results):
-#     print(f"\nResult {i+1}: ")
-#     print(doc.page_content[:500])
-#     print(f"--- Source: {doc.metadata['source']}")
+# Quick sanity-check query
+query = "transformer attention mechanism"
+results = vector_db.similarity_search(query, k=3)
+print(f"\nTop 3 results for: '{query}'")
+for i, doc in enumerate(results):
+    print(f"\n[{i+1}] Source: {doc.metadata.get('source', 'unknown')}")
+    print(f"     {doc.page_content[:200]}...")

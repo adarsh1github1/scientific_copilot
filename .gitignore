@@ -48,3 +48,4 @@ secrets.yaml
 # Logs
 *.log
 logs/
+chunks.zip
