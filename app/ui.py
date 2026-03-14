@@ -3,6 +3,7 @@ from langchain_huggingface import HuggingFaceEmbeddings
 from langchain_community.vectorstores import FAISS
 
 from config import VECTOR_DB_DIR
+from query import get_answer
 
 # ── Load vector DB once (cached across reruns) ─────────────────────────────
 @st.cache_resource
@@ -21,10 +22,10 @@ def load_vector_db():
 
 # ── Page ───────────────────────────────────────────────────────────────────
 st.title("🔬 Scientific Copilot")
-st.caption("Search ArXiv research papers using natural language")
+st.caption("Ask questions about ArXiv research papers — answers grounded in real papers")
 
 query = st.text_input("Enter your query:", placeholder="e.g. How does BERT use attention?")
-top_k = st.slider("Number of results", min_value=1, max_value=10, value=5)
+top_k = st.slider("Number of sources to retrieve", min_value=1, max_value=10, value=5)
 search = st.button("Search")
 
 # ── Search ─────────────────────────────────────────────────────────────────
@@ -32,22 +33,26 @@ if search:
     if not query.strip():
         st.warning("Please enter a query.")
     else:
-        with st.spinner("Searching..."):
+        with st.spinner("Retrieving papers and generating answer..."):
             try:
                 db = load_vector_db()
-                results = db.similarity_search_with_score(query.strip(), k=top_k)
+                answer, sources = get_answer(query.strip(), db, top_k=top_k)
             except Exception as e:
-                st.error(f"Failed to load vector DB: {e}")
+                st.error(f"Error: {e}")
                 st.stop()
 
-        st.markdown(f"**{len(results)} results for:** *{query}*")
-        st.divider()
+        # ── Answer ─────────────────────────────────────────────────────────
+        st.subheader("Answer")
+        st.write(answer)
 
-        for i, (doc, score) in enumerate(results, start=1):
-            source = doc.metadata.get("source", "Unknown paper")
-            # Strip .pdf.txt suffix for cleaner display
+        # ── Sources ────────────────────────────────────────────────────────
+        st.divider()
+        st.subheader(f"📄 Sources ({len(sources)} papers retrieved)")
+
+        for i, doc in enumerate(sources, start=1):
+            source = doc.metadata.get("source", "Unknown")
             paper_id = source.replace(".pdf.txt", "").replace(".txt", "")
 
-            with st.expander(f"Result {i} — `{paper_id}`  (score: {score:.4f})", expanded=i == 1):
+            with st.expander(f"Reference {i} — `{paper_id}`"):
                 st.markdown(doc.page_content)
-                st.markdown(f"**📄 Reference:** [{paper_id}](https://arxiv.org/abs/{paper_id})")
+                st.markdown(f"🔗 [View on ArXiv](https://arxiv.org/abs/{paper_id})")
