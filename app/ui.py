@@ -55,4 +55,5 @@ if search:
 
             with st.expander(f"Reference {i} — `{paper_id}`"):
                 st.markdown(doc.page_content)
+                print(doc.page_content)
                 st.markdown(f"🔗 [View on ArXiv](https://arxiv.org/abs/{paper_id})")

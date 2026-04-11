@@ -22,4 +22,4 @@ results = vector_db.similarity_search(query, k=3)
 print(f"\nTop 3 results for: '{query}'")
 for i, doc in enumerate(results):
     print(f"\n[{i+1}] Source: {doc.metadata.get('source', 'unknown')}")
-    print(f"     {doc.page_content[:200]}...")
+    print(f"     {doc.page_content}.")

@@ -43,7 +43,7 @@ Answer:"""
 
     # 4. Call Gemini Flash
     llm = ChatGoogleGenerativeAI(
-        model="gemini-1.5-flash",
+        model="gemini-3-flash-preview",
         google_api_key=GOOGLE_API_KEY,
         temperature=0.2,
     )

@@ -80,19 +80,30 @@ print("✅ Embedder loaded on CUDA")
 # sequential — CUDA is a single device and is already fully utilized
 # internally via batch_size=512.
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import re
 from pathlib import Path
 from langchain.docstore.document import Document
 
 def parse_file(filepath):
     try:
         content = Path(filepath).read_text(encoding="utf-8", errors="ignore")
+
+        # Support both old format (--- Chunk N ---) and new format (<<<CHUNK N>>>)
+        if "<<<CHUNK" in content:
+            raw_chunks = content.split("<<<CHUNK ")
+            chunks = [re.sub(r'^\d+>>>', '', c).strip() for c in raw_chunks if c.strip()]
+        else:
+            # Old format: strip leading " N ---" prefix left by splitting on "--- Chunk"
+            raw_chunks = content.split("--- Chunk ")
+            chunks = [re.sub(r'^\d+\s*---', '', c).strip() for c in raw_chunks if c.strip()]
+
         return [
             Document(
-                page_content=chunk.strip(),
+                page_content=chunk,
                 metadata={"source": os.path.basename(filepath)}
             )
-            for chunk in content.split("--- Chunk")
-            if chunk.strip()
+            for chunk in chunks
+            if len(chunk) > 50   # skip near-empty fragments
         ]
     except Exception as e:
         print(f"  [SKIP] {filepath}: {e}")

@@ -5,7 +5,7 @@ from langchain.text_splitter import RecursiveCharacterTextSplitter
 
 from config import ARXIV_INPUT_DIR, DATA_CHUNKS_DIR
 
-splitter = RecursiveCharacterTextSplitter(chunk_size=500, chunk_overlap=50)
+splitter = RecursiveCharacterTextSplitter(chunk_size=1500, chunk_overlap=150)
 
 def create_chunks(filepath):
     pdfloader = PyPDFLoader(filepath)
@@ -19,13 +19,7 @@ def create_chunks(filepath):
 
     with output_file.open("w") as f:
         for i, chunk in enumerate(chunk_texts):
-            f.write(f"--- Chunk {i+1} ---{chunk}\n\n\n")
-
-
-
-
-
-
+            f.write(f"<<<CHUNK {i+1}>>>{chunk}\n\n")
 
 if __name__ == "__main__":
     DATA_CHUNKS_DIR.mkdir(parents=True, exist_ok=True)

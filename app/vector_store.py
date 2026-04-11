@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 from langchain.docstore.document import Document
@@ -22,10 +23,19 @@ def parse_chunks(txt_file: Path) -> list[Document]:
     """Parse one chunk .txt file into LangChain Documents."""
     try:
         content = txt_file.read_text(encoding="utf-8", errors="ignore")
+
+        # Support both new format (<<<CHUNK N>>>) and old format (--- Chunk N ---)
+        if "<<<CHUNK" in content:
+            raw_chunks = content.split("<<<CHUNK ")
+            chunks = [re.sub(r'^\d+>>>', '', c).strip() for c in raw_chunks if c.strip()]
+        else:
+            raw_chunks = content.split("--- Chunk ")
+            chunks = [re.sub(r'^\d+\s*---', '', c).strip() for c in raw_chunks if c.strip()]
+
         return [
-            Document(page_content=chunk.strip(), metadata={"source": txt_file.name})
-            for chunk in content.split("--- Chunk")
-            if chunk.strip()
+            Document(page_content=chunk, metadata={"source": txt_file.name})
+            for chunk in chunks
+            if len(chunk) > 50   # skip near-empty fragments
         ]
     except Exception as e:
         print(f"  [WARN] Skipping {txt_file.name}: {e}")
